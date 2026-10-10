@@ -1,4 +1,4 @@
-"""Summary statistics reported in the appendix."""
+"""Performance and summary statistics."""
 import numpy as np
 import pandas as pd
 from scipy import stats as sps
@@ -21,9 +21,8 @@ def latex_summary(ret):
     s = summary(ret)
     rows = []
     for name, r in s.iterrows():
-        rows.append("%s & %.1f & %.1f & %+.2f & %.1f \\\\"
-                    % (name, 100 * r["ann_return"], 100 * r["ann_vol"],
-                       r["skew"], r["ex_kurtosis"]))
+        rows.append(f"{name} & {100 * r['ann_return']:.1f} & {100 * r['ann_vol']:.1f} & "
+                    f"{r['skew']:+.2f} & {r['ex_kurtosis']:.1f} \\\\")
     return "\n".join(rows)
 
 
@@ -37,8 +36,8 @@ def latex_corr(ret):
     names = list(ret.columns)
     rows = []
     for i, name in enumerate(names):
-        cells = ["%.2f" % c.iloc[i, j] for j in range(i + 1)] + [""] * (len(names) - i - 1)
-        rows.append("%s & %s \\\\" % (name, " & ".join(cells)))
+        cells = [f"{c.iloc[i, j]:.2f}" for j in range(i + 1)] + [""] * (len(names) - i - 1)
+        rows.append(f"{name} & {' & '.join(cells)} \\\\")
     return "\n".join(rows)
 
 

@@ -23,10 +23,18 @@ def threshold_grid(R, pool, lead, lose):
     return g
 
 
+def runs(R, pool, ld, ls, tau):
+    """Threshold rule, benchmark and their opposites on one sample."""
+    return {"rule": backtest.threshold(R, pool, ld, ls, tau),
+            "benchmark": backtest.threshold(R, pool, ld, ls, gated=False),
+            "opposite": backtest.threshold(R, pool, ld, ls, tau, flip=True),
+            "benchmark_opposite": backtest.threshold(R, pool, ld, ls, gated=False, flip=True)}
+
+
 def argmax(g):
     a = g.to_numpy(float)
     i, j = np.unravel_index(np.nanargmax(a), a.shape)
-    return float(g.index[i]), float(g.columns[j]), float(a[i, j])
+    return float(g.index[i]), float(g.columns[j])
 
 
 def results():
@@ -37,50 +45,43 @@ def results():
     R = {"train": tr.to_numpy(float), "test": te.to_numpy(float)}
     pool = {k: swarm.alpha(v, rule="day", pooled=True) for k, v in R.items()}
     legs_ = {k: legs(v) for k, v in R.items()}
-    A = {k: swarm.alpha(v, rule="window") for k, v in R.items()}
 
     g = threshold_grid(R["train"], pool["train"], *legs_["train"])
-    lo, hi, best = argmax(g)
+    lo, hi = argmax(g)
     out["grid"] = {"train": g, "test": threshold_grid(R["test"], pool["test"], *legs_["test"])}
     out["tau"] = (lo, hi)
     out["threshold"], out["activity"] = {}, {}
     for s in ("train", "test"):
         ld, ls = legs_[s]
-        runs = {"rule": backtest.threshold(R[s], pool[s], ld, ls, [lo, hi]),
-                "benchmark": backtest.threshold(R[s], pool[s], ld, ls, gated=False),
-                "opposite": backtest.threshold(R[s], pool[s], ld, ls, [lo, hi], flip=True),
-                "benchmark_opposite": backtest.threshold(R[s], pool[s], ld, ls,
-                                                         gated=False, flip=True)}
         out["threshold"][s] = {k: stats.performance(v[1], config.TRADING_DAYS)
-                               for k, v in runs.items()}
+                               for k, v in runs(R[s], pool[s], ld, ls, [lo, hi]).items()}
         out["activity"][s] = {
             "rule": backtest.threshold_activity(R[s], pool[s], ld, ls, [lo, hi]),
             "benchmark": backtest.threshold_activity(R[s], pool[s], ld, ls, gated=False)}
 
     R["full"] = ret.to_numpy(float)
-    A["full"] = swarm.alpha(R["full"], rule="window")
+    A = swarm.alpha(R["full"], rule="window")
     out["hold"] = {}
     for h in config.H_GRID:
         row = {}
         for flip in (False, True):
-            _, _, per = backtest.cross_section(R["full"], A["full"], h=h, flip=flip)
+            _, _, per = backtest.cross_section(R["full"], A, h=h, flip=flip)
             row["reverse" if flip else "direct"] = stats.performance(per, config.TRADING_DAYS / h)
         out["hold"][h] = row
 
     out["baseline"] = {}
     for flip in (False, True):
-        _, _, per = backtest.cross_section(R["full"], A["full"], flip=flip)
+        _, _, per = backtest.cross_section(R["full"], A, flip=flip)
         out["baseline"]["reverse" if flip else "direct"] = stats.performance(
             per, config.TRADING_DAYS / config.H)
-    _, _, per = backtest.cross_section(R["full"], A["full"], equal_weight=True)
+    _, _, per = backtest.cross_section(R["full"], A, equal_weight=True)
     out["baseline"]["equal"] = stats.performance(per, config.TRADING_DAYS / config.H)
     out["alpha"] = {
         "per_asset": describe(swarm.alpha(R["train"], rule="window")),
         "pooled": describe(swarm.alpha(R["train"], rule="window", pooled=True)),
         "decomposition": swarm.decompose(R["train"]),
         "mean_corr": stats.mean_correlation(ret)}
-    out["rank_corr"] = {h: rank_corr(ret.to_numpy(float), swarm.alpha(ret.to_numpy(float), rule="window"), h)
-                        for h in (5, 10, config.H, 63)}
+    out["rank_corr"] = {h: rank_corr(R["full"], A, h) for h in (5, 10, config.H, 63)}
     return out
 
 
@@ -109,12 +110,14 @@ def report(out):
     print(f"threshold optimum ({lo}, {hi})")
     for s in ("train", "test"):
         for k, d in out["threshold"][s].items():
-            print(f"  {s:5s} {k:9s} return {d['total']:+8.1%}  vol {d['vol']:6.1%}  sharpe {d['sharpe']:+6.2f}")
+            print(f"  {s:5s} {k:9s} return {d['total']:+8.1%}  vol {d['vol']:6.1%}  "
+                  f"sharpe {d['sharpe']:+6.2f}")
     print("holding period, net of cost")
     for h, row in out["hold"].items():
         d, e = row["direct"], row["reverse"]
-        print(f"  h={h:3d} | slow-fast {d['total']:+7.1%} vol {d['vol']:5.1%} SR {d['sharpe']:+5.2f}"
-              f" | fast-slow {e['total']:+7.1%} vol {e['vol']:5.1%} SR {e['sharpe']:+5.2f}")
+        print(f"  h={h:3d} | slow-fast {d['total']:+7.1%} vol {d['vol']:5.1%} "
+              f"SR {d['sharpe']:+5.2f} | fast-slow {e['total']:+7.1%} vol {e['vol']:5.1%} "
+              f"SR {e['sharpe']:+5.2f}")
     for key, b in out["baseline"].items():
         print(f"  baseline h={config.H} full {key:7s}: return {b['total']:+7.1%}, "
               f"vol {b['vol']:.1%}, sharpe {b['sharpe']:+.2f}, t={b['t']:+.2f}, n={b['n']}")
@@ -127,10 +130,11 @@ def report(out):
           f"mean pairwise correlation {a['mean_corr']:.2f}")
     for s in ("train", "test"):
         for k, d in out["activity"][s].items():
-            print(f"  {s:5s} {k:9s} active {d['active']:.1%} of days, turnover {d['turnover']:.2f}/day, "
-                  f"cost {d['cost']:.1%}/yr")
+            print(f"  {s:5s} {k:9s} active {d['active']:.1%} of days, "
+                  f"turnover {d['turnover']:.2f}/day, cost {d['cost']:.1%}/yr")
     for h, d in out["rank_corr"].items():
-        print(f"  rank corr with next {h:2d} day return: {d['mean']:+.3f}, t={d['t']:+.2f}, n={d['n']}")
+        print(f"  rank corr with next {h:2d} day return: {d['mean']:+.3f}, "
+              f"t={d['t']:+.2f}, n={d['n']}")
     for s in ("train", "test"):
         a = out["grid"][s].to_numpy(float)
         ok = np.isfinite(a)

@@ -24,14 +24,14 @@ def positions(R, L=config.LAGS):
 
 
 def leader(R, X, t, rule):
+    """Highest return on day t ('day') or over the position window ('window', paper 5.2)."""
     if rule == "day":
         return int(np.argmax(R[t]))
     return int(np.argmax(X[t].sum(axis=1)))
 
 
 def decompose(R, L=config.LAGS, rule="window"):
-    """Split the pooled numerator into the pull toward the leader and the own increment,
-    and report the median of the ratio of squared norms that decides which one dominates."""
+    """Pooled numerator as leader pull plus own increment, median squared norm ratio."""
     X = positions(R, L)
     pull, own, ratio = [], [], []
     for t in range(L + 1, len(R)):
@@ -51,11 +51,7 @@ def decompose(R, L=config.LAGS, rule="window"):
 
 
 def alpha(R, L=config.LAGS, rule="window", pooled=False):
-    """Per asset alpha of equation (14), or the pooled common speed when pooled is True.
-
-    rule 'window' takes the leader with the highest cumulative return over the position
-    window, as in section 5.2 of the paper. rule 'day' takes the leader with the highest
-    return on day t, which is the leg the threshold rule trades."""
+    """Per asset alpha of equation (14), or the pooled common speed when pooled is True."""
     X = positions(R, L)
     T, n = R.shape
     A = np.full((T, n), np.nan)

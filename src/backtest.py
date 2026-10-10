@@ -19,6 +19,16 @@ def _pair(n, long_i, short_i, sign):
     return w
 
 
+def _weights(R, pool, R_lead, R_lose, t, thresholds, gated, sign):
+    """Leader versus loser weights on day t, gated on the pooled speed when gated is True."""
+    n, lead, lose, r_lead = R.shape[1], R_lead[t], R_lose[t], R[t, R_lead[t]]
+    if r_lead > 0 and (not gated or pool[t] > thresholds[1]):
+        return _pair(n, lead, lose, sign)
+    if r_lead < 0 and (not gated or pool[t] < thresholds[0]):
+        return _pair(n, lose, lead, sign)
+    return np.zeros(n)
+
+
 def threshold(R, pool, R_lead, R_lose, thresholds=None, flip=False, gated=True,
               L=config.LAGS):
     """Leader versus loser pair trade, gated on the pooled speed when gated is True."""
@@ -26,19 +36,7 @@ def threshold(R, pool, R_lead, R_lose, thresholds=None, flip=False, gated=True,
     cap, prev, path, per = 1.0, np.zeros(n), [], []
     sign = -1.0 if flip else 1.0
     for t in range(L + 1, T - 1):
-        w = np.zeros(n)
-        r_lead = R[t, R_lead[t]]
-        if gated:
-            a = pool[t]
-            if a > thresholds[1] and r_lead > 0:
-                w = _pair(n, R_lead[t], R_lose[t], sign)
-            elif a < thresholds[0] and r_lead < 0:
-                w = _pair(n, R_lose[t], R_lead[t], sign)
-        else:
-            if r_lead > 0:
-                w = _pair(n, R_lead[t], R_lose[t], sign)
-            elif r_lead < 0:
-                w = _pair(n, R_lose[t], R_lead[t], sign)
+        w = _weights(R, pool, R_lead, R_lose, t, thresholds, gated, sign)
         prev_cap = cap
         cap, prev, pnl = _step(cap, w, prev, R[t + 1])
         path.append(cap)
@@ -78,15 +76,7 @@ def threshold_activity(R, pool, R_lead, R_lose, thresholds=None, gated=True, L=c
     T, n = R.shape
     prev, total, active = np.zeros(n), 0.0, 0
     for t in range(L + 1, T - 1):
-        w = np.zeros(n)
-        r_lead = R[t, R_lead[t]]
-        if not gated:
-            if r_lead != 0:
-                w = _pair(n, R_lead[t], R_lose[t], np.sign(r_lead))
-        elif pool[t] > thresholds[1] and r_lead > 0:
-            w = _pair(n, R_lead[t], R_lose[t], 1.0)
-        elif pool[t] < thresholds[0] and r_lead < 0:
-            w = _pair(n, R_lose[t], R_lead[t], 1.0)
+        w = _weights(R, pool, R_lead, R_lose, t, thresholds, gated, 1.0)
         total += float(np.abs(w - prev).sum())
         active += int(np.abs(w).sum() > 0)
         prev = w

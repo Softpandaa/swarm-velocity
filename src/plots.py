@@ -24,6 +24,16 @@ def _capital(ret, flip=False, equal_weight=False):
     return ret.index[idx], p
 
 
+def _save_capital(fig, ax, name):
+    ax.axhline(1.0, color="black", linewidth=0.6, alpha=0.5)
+    ax.set_ylabel("Capital")
+    ax.legend(frameon=False)
+    fig.autofmt_xdate()
+    fig.tight_layout()
+    fig.savefig(config.FIG_DIR / name, dpi=200)
+    plt.close(fig)
+
+
 def figure_baseline(ret):
     fig, ax = plt.subplots(figsize=(8, 4))
     for label, kw, col in [("Slow minus fast", dict(), "blue"),
@@ -31,20 +41,13 @@ def figure_baseline(ret):
                            ("Equally weighted sectors", dict(equal_weight=True), "grey")]:
         d, p = _capital(ret, **kw)
         ax.plot(d, p, label=label, color=OKABE[col], linestyle=DASH[col], linewidth=1.4)
-    ax.axhline(1.0, color="black", linewidth=0.6, alpha=0.5)
-    ax.set_ylabel("Capital")
-    ax.legend(frameon=False)
-    fig.autofmt_xdate()
-    fig.tight_layout()
-    fig.savefig(config.FIG_DIR / "cross_section_h21.png", dpi=200)
-    plt.close(fig)
+    _save_capital(fig, ax, "cross_section_h21.png")
 
 
 def figure_grid(out):
     fig, axes = plt.subplots(1, 2, figsize=(9, 4), sharey=True)
-    a = [(out["grid"]["train"].to_numpy(float) - 1) * 100,
-         (out["grid"]["test"].to_numpy(float) - 1) * 100]
-    vmax = max(abs(np.nanmin(a[0])), abs(np.nanmax(a[0])), abs(np.nanmin(a[1])), abs(np.nanmax(a[1])))
+    a = [(out["grid"][s].to_numpy(float) - 1) * 100 for s in ("train", "test")]
+    vmax = max(np.nanmax(np.abs(x)) for x in a)
     g = out["grid"]["train"]
     for ax, arr, title in zip(axes, a, ("Training", "Testing")):
         im = ax.imshow(arr, cmap="RdBu_r", vmin=-vmax, vmax=vmax, aspect="auto")
@@ -63,28 +66,19 @@ def figure_threshold(out):
     """Testing period only, each rule starting from one unit of capital."""
     lo, hi = out["tau"]
     fig, ax = plt.subplots(figsize=(8, 4))
-    part = swarm.split(out["ret"])[1]
+    part = out["test"]
     R = part.to_numpy(float)
     pool = swarm.alpha(R, rule="day", pooled=True)
     ld, ls = m.legs(R)
-    paths = {"rule": backtest.threshold(R, pool, ld, ls, [lo, hi])[0],
-             "opposite": backtest.threshold(R, pool, ld, ls, [lo, hi], flip=True)[0],
-             "benchmark": backtest.threshold(R, pool, ld, ls, gated=False)[0],
-             "benchmark_opposite": backtest.threshold(R, pool, ld, ls, gated=False, flip=True)[0]}
+    paths = m.runs(R, pool, ld, ls, [lo, hi])
     idx = part.index[config.LAGS + 1:len(R) - 1]
     labels = {"rule": "Threshold rule", "opposite": "Opposite rule",
               "benchmark": "Benchmark", "benchmark_opposite": "Opposite benchmark"}
     for k, col in [("rule", "blue"), ("opposite", "vermillion"),
                    ("benchmark", "grey"), ("benchmark_opposite", "sky")]:
-        ax.plot(idx, paths[k], label=labels[k], color=OKABE[col],
+        ax.plot(idx, paths[k][0], label=labels[k], color=OKABE[col],
                 linestyle=DASH[col], linewidth=1.4)
-    ax.axhline(1.0, color="black", linewidth=0.6, alpha=0.5)
-    ax.set_ylabel("Capital")
-    ax.legend(frameon=False)
-    fig.autofmt_xdate()
-    fig.tight_layout()
-    fig.savefig(config.FIG_DIR / "threshold_performance.png", dpi=200)
-    plt.close(fig)
+    _save_capital(fig, ax, "threshold_performance.png")
 
 
 def figure_holding(out):
@@ -106,7 +100,7 @@ def figure_holding(out):
     ax2.set_ylabel("Sharpe ratio")
     ax2.grid(False)
     lines = ax.get_lines()[:2] + ax2.get_lines()[:2]
-    ax.legend(lines, [l.get_label() for l in lines], frameon=False, ncol=2, fontsize=9)
+    ax.legend(handles=lines, frameon=False, ncol=2, fontsize=9)
     fig.tight_layout()
     fig.savefig(config.FIG_DIR / "holding_period.png", dpi=200)
     plt.close(fig)
