@@ -17,7 +17,7 @@ The report and slides are distributed as compiled PDFs. Their typesetting source
 
 ## Data
 
-`data/sector_etf_prices.csv` is the eleven Select Sector SPDR ETFs daily close from Yahoo Finance from October 2018 to December 2025.
+`data/sector_etf_prices.csv` is the eleven Select Sector SPDR ETFs daily adjusted close from Yahoo Finance from October 2018 to December 2025.
 
 ## Reproducing
 
