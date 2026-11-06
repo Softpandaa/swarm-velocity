@@ -5,9 +5,9 @@ import config
 
 
 def _step(cap, w, prev_dollar, fwd):
-    """One holding period, charging the one way cost on the change in dollar position."""
+    """One holding period on the log return fwd, charging the one way cost on the dollar change."""
     dollar = w * cap
-    pnl = float(dollar @ fwd) - config.TCOST * float(np.abs(dollar - prev_dollar).sum())
+    pnl = float(dollar @ np.expm1(fwd)) - config.TCOST * float(np.abs(dollar - prev_dollar).sum())
     return cap + pnl, dollar, pnl
 
 

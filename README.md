@@ -1,8 +1,12 @@
 # Swarm Velocity Dynamics in US Sector ETFs
 
-This study utilizes the leader-following swarm velocity estimator of Chen, Huang and Tang (2025), *Classifying Factor Velocity with Swarm Intelligence* on eleven Select Sector SPDR ETFs at daily frequency and asks whether the estimated velocity carries tradable information. 
+This study examines whether the leader-following swarm velocity of Chen, Huang and Tang (2025), *Classifying Factor Velocity with Swarm Intelligence*, carries tradable information for eleven Select Sector SPDR ETFs at daily frequency. A threshold rule applies the pooled velocity to a leader-versus-loser pair trade, and a cross-sectional rule ranks the ETFs by their own speeds.
 
-We backtest two strategies: a threshold rule that applies the cross-sectional average velocity to a leader-versus-loser pair trade, and a cross-sectional rule that ranks the ETFs by their own velocities. The swarm velocity proves to be informative but does not offer a standalone tradable edge. The cross-sectional rule loses when trading from slow to fast ETFs but gains when doing the opposite, as the correlated ETFs cause the velocity estimator to favor an asset's own movement over its distance to the leader. Backtesting results reveal that all strategies are outperformed by an equally weighted portfolio of the same ETFs.
+## Findings
+
+The velocity threshold cuts transaction costs but does not pick better trades. Out of sample, its trades earn −0.06% per active day before costs, no better than the −0.03% of the ungated trade. Neither rule earns a significantly positive return, and an equally weighted portfolio of the same ETFs has a higher Sharpe ratio.
+
+The estimated speeds are negative, whereas Chen, Huang and Tang (2025) find positive ones. Because the gap to the leader is dated on the same day as the velocity, the estimate sits near −1/2, its value for returns without leader-following.
 
 ## Layout
 
@@ -16,7 +20,7 @@ The report is distributed as a compiled PDF. Its typesetting source is not inclu
 
 ## Data
 
-`data/sector_etf_prices.csv` is the eleven Select Sector SPDR ETFs daily adjusted close from Yahoo Finance from October 2018 to December 2025.
+`data/sector_etf_prices.csv` holds the daily adjusted closes of the eleven Select Sector SPDR ETFs from Yahoo Finance for October 2018 to December 2025.
 
 ## Reproducing
 
@@ -27,4 +31,4 @@ pip install -r requirements.txt
 python src/plots.py
 ```
 
-This prints the table of the report and rewrites the four figures it uses to `latex/figures/`, which is created on the first run and is not tracked.
+This prints every number quoted in the report and draws its four figures.
